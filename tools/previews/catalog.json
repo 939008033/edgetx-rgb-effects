@@ -1,0 +1,354 @@
+[
+  {
+    "id": "A01-flow",
+    "zh-CN": {
+      "name": "彩虹流光",
+      "note": "彩虹沿双环镜像流动"
+    },
+    "en": {
+      "name": "Rainbow Flow",
+      "note": "A mirrored rainbow flows around both rings."
+    }
+  },
+  {
+    "id": "A02-aura",
+    "zh-CN": {
+      "name": "极光波纹",
+      "note": "青绿、蓝紫光带缓慢起伏"
+    },
+    "en": {
+      "name": "Aurora Waves",
+      "note": "Slow cyan-green and blue-violet light bands."
+    }
+  },
+  {
+    "id": "A03-lava",
+    "zh-CN": {
+      "name": "熔岩流动",
+      "note": "暗红底色，橙金亮带涌动"
+    },
+    "en": {
+      "name": "Lava Flow",
+      "note": "Orange-gold bands move over a dark red base."
+    }
+  },
+  {
+    "id": "A04-star",
+    "zh-CN": {
+      "name": "星河微光",
+      "note": "不同灯珠错峰明灭"
+    },
+    "en": {
+      "name": "Starfield",
+      "note": "Individual cyan, blue and white stars fade in and out."
+    }
+  },
+  {
+    "id": "A05-brea",
+    "zh-CN": {
+      "name": "同步呼吸",
+      "note": "双环同步，青蓝到紫色渐变"
+    },
+    "en": {
+      "name": "Synced Breathing",
+      "note": "Both rings breathe together, shifting cyan to purple."
+    }
+  },
+  {
+    "id": "A06-swap",
+    "zh-CN": {
+      "name": "交替呼吸",
+      "note": "左青右粉，此亮彼暗"
+    },
+    "en": {
+      "name": "Alternating Breath",
+      "note": "Left cyan and right pink alternate in brightness."
+    }
+  },
+  {
+    "id": "A07-beat",
+    "zh-CN": {
+      "name": "心跳脉冲",
+      "note": "一强一弱两次脉冲，随后停歇"
+    },
+    "en": {
+      "name": "Heartbeat",
+      "note": "One strong pulse, one weaker pulse, then a pause."
+    }
+  },
+  {
+    "id": "A08-comt",
+    "zh-CN": {
+      "name": "彗星拖尾",
+      "note": "冰蓝光点带渐隐尾迹"
+    },
+    "en": {
+      "name": "Comet Trail",
+      "note": "An icy blue point moves with a soft fading tail."
+    }
+  },
+  {
+    "id": "A09-dual",
+    "zh-CN": {
+      "name": "双彗星对转",
+      "note": "每圈青粉彗星相向绕行，交汇时混色"
+    },
+    "en": {
+      "name": "Twin Comets",
+      "note": "Cyan and pink comets counter-rotate inside each ring."
+    }
+  },
+  {
+    "id": "A10-rot",
+    "zh-CN": {
+      "name": "霓虹旋翼",
+      "note": "每圈四片青紫光刃旋转"
+    },
+    "en": {
+      "name": "Neon Rotor",
+      "note": "Four soft cyan-purple blades rotate on each ring."
+    }
+  },
+  {
+    "id": "A11-scan",
+    "zh-CN": {
+      "name": "往返扫描",
+      "note": "光带从底部向顶部扫描，再返回"
+    },
+    "en": {
+      "name": "Up-Down Scan",
+      "note": "A light band scans from bottom to top and back."
+    }
+  },
+  {
+    "id": "A12-ripl",
+    "zh-CN": {
+      "name": "扩散波纹",
+      "note": "从中间按键向灯环扩散，消退后重来"
+    },
+    "en": {
+      "name": "Expanding Ripple",
+      "note": "A wave travels from center keys into both rings, then fades."
+    }
+  },
+  {
+    "id": "A13-nova",
+    "zh-CN": {
+      "name": "充能爆发",
+      "note": "按键逐级充能、铺满双环，亮白后渐暗"
+    },
+    "en": {
+      "name": "Charge Burst",
+      "note": "Keys charge into full rings, flash white and fade."
+    }
+  },
+  {
+    "id": "B01-user",
+    "zh-CN": {
+      "name": "自定义油门灯",
+      "note": "配色、走向、起点使用 v15map 保存的设置"
+    },
+    "en": {
+      "name": "Custom Throttle",
+      "note": "Uses the palette, direction and start saved by v15map."
+    }
+  },
+  {
+    "id": "B02-rain",
+    "zh-CN": {
+      "name": "彩虹油门",
+      "note": "红橙→黄绿→青蓝→紫；左顺右逆，内下角起"
+    },
+    "en": {
+      "name": "Rainbow Throttle",
+      "note": "Red to purple; left CW / right CCW, inner-bottom start."
+    }
+  },
+  {
+    "id": "B03-ice",
+    "zh-CN": {
+      "name": "冰蓝油门",
+      "note": "深蓝→青→冰白；左顺右逆，内下角起"
+    },
+    "en": {
+      "name": "Ice Throttle",
+      "note": "Blue to cyan-white; mirrored, inner-bottom start."
+    }
+  },
+  {
+    "id": "B04-fire",
+    "zh-CN": {
+      "name": "火焰油门",
+      "note": "红橙→橙→金黄；左顺右逆，内下角起"
+    },
+    "en": {
+      "name": "Fire Throttle",
+      "note": "Red-orange to gold; mirrored, inner-bottom start."
+    }
+  },
+  {
+    "id": "B05-pink",
+    "zh-CN": {
+      "name": "青粉油门",
+      "note": "青→淡蓝→粉；左顺右逆，内下角起"
+    },
+    "en": {
+      "name": "Cyan-Pink Throttle",
+      "note": "Cyan to pale blue to pink; mirrored, inner-bottom."
+    }
+  },
+  {
+    "id": "B06-mint",
+    "zh-CN": {
+      "name": "薄荷油门",
+      "note": "绿→青绿→蓝；左顺右逆，内下角起"
+    },
+    "en": {
+      "name": "Mint Throttle",
+      "note": "Green to teal to blue; mirrored, inner-bottom."
+    }
+  },
+  {
+    "id": "B07-blue",
+    "zh-CN": {
+      "name": "纯青蓝油门",
+      "note": "纯色；左顺右逆，内下角起；可辅助排查乱色"
+    },
+    "en": {
+      "name": "Solid Cyan",
+      "note": "Solid cyan-blue; mirrored, inner-bottom start."
+    }
+  },
+  {
+    "id": "B08-purp",
+    "zh-CN": {
+      "name": "纯紫油门",
+      "note": "纯色；左顺右逆，内下角起"
+    },
+    "en": {
+      "name": "Solid Purple",
+      "note": "Solid purple; mirrored, inner-bottom start."
+    }
+  },
+  {
+    "id": "B09-gold",
+    "zh-CN": {
+      "name": "纯金油门",
+      "note": "纯色；左顺右逆，内下角起"
+    },
+    "en": {
+      "name": "Solid Gold",
+      "note": "Solid gold; mirrored, inner-bottom start."
+    }
+  },
+  {
+    "id": "B10-rev",
+    "zh-CN": {
+      "name": "反向彩虹",
+      "note": "左逆右顺，内下角起"
+    },
+    "en": {
+      "name": "Reversed Rainbow",
+      "note": "Left CCW / right CW, inner-bottom start."
+    }
+  },
+  {
+    "id": "B11-both",
+    "zh-CN": {
+      "name": "双向展开",
+      "note": "青粉渐变，从正下方向圆环两边展开"
+    },
+    "en": {
+      "name": "Split Expansion",
+      "note": "Cyan-pink expands both ways from the bottom."
+    }
+  },
+  {
+    "id": "B12-top",
+    "zh-CN": {
+      "name": "顶部起亮",
+      "note": "冰蓝渐变，从正上方起，左顺右逆"
+    },
+    "en": {
+      "name": "Top Start",
+      "note": "Ice palette; starts at top, left CW / right CCW."
+    }
+  },
+  {
+    "id": "B13-cw",
+    "zh-CN": {
+      "name": "双环顺时针",
+      "note": "彩虹渐变，两圈都顺时针，正下方起"
+    },
+    "en": {
+      "name": "Both Clockwise",
+      "note": "Rainbow; both rings clockwise, bottom start."
+    }
+  },
+  {
+    "id": "B14-ccw",
+    "zh-CN": {
+      "name": "双环逆时针",
+      "note": "绿蓝渐变，两圈都逆时针，外下角起"
+    },
+    "en": {
+      "name": "Both Counter-CW",
+      "note": "Green-blue; both rings counterclockwise, outer-bottom."
+    }
+  },
+  {
+    "id": "B15-jet",
+    "zh-CN": {
+      "name": "油门加力",
+      "note": "橙金进度叠加移动亮斑，油门越大越快"
+    },
+    "en": {
+      "name": "Afterburner",
+      "note": "Throttle bar plus a moving hotspot; faster at high throttle."
+    }
+  },
+  {
+    "id": "C01-aim",
+    "zh-CN": {
+      "name": "双杆瞄准",
+      "note": "各自跟随对应摇杆的方向和偏转幅度"
+    },
+    "en": {
+      "name": "Stick Aim",
+      "note": "Each ring follows its physical stick direction and deflection."
+    }
+  },
+  {
+    "id": "C02-mix",
+    "zh-CN": {
+      "name": "双杆调色台",
+      "note": "左杆调色和亮度；右杆调速度、方向和光带宽度"
+    },
+    "en": {
+      "name": "Stick Color Mixer",
+      "note": "Left: color/brightness. Right: speed/direction/width."
+    }
+  },
+  {
+    "id": "C03-spin",
+    "zh-CN": {
+      "name": "双杆旋涡",
+      "note": "左右各自调速、反向和调色，横向居中停转"
+    },
+    "en": {
+      "name": "Stick Vortex",
+      "note": "Each stick controls its ring speed, direction and color."
+    }
+  },
+  {
+    "id": "C04-cmb",
+    "zh-CN": {
+      "name": "双杆组合拳",
+      "note": "两步水平动作触发粉白星环、冰蓝冲击或彩虹回旋"
+    },
+    "en": {
+      "name": "Stick Combos",
+      "note": "Two-step horizontal gestures trigger three short bursts."
+    }
+  }
+]
