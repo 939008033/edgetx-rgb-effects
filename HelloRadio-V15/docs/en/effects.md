@@ -26,7 +26,7 @@
 
 | Filename | Effect | Description |
 |---|---|---|
-| B01-user | [Custom Throttle](../../previews/en/B-throttle/B01-user.gif) | Uses the palette, direction and start saved by v15map. |
+| B01-user | [Custom Throttle](../../previews/en/B-throttle/B01-user.gif) | Keeps legacy styling; defaults to a mirrored rainbow on new installs. |
 | B02-rain | [Rainbow Throttle](../../previews/en/B-throttle/B02-rain.gif) | Red to purple; left CW / right CCW, inner-bottom start. |
 | B03-ice | [Ice Throttle](../../previews/en/B-throttle/B03-ice.gif) | Blue to cyan-white; mirrored, inner-bottom start. |
 | B04-fire | [Fire Throttle](../../previews/en/B-throttle/B04-fire.gif) | Red-orange to gold; mirrored, inner-bottom start. |

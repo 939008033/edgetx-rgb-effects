@@ -32,7 +32,7 @@ edgetx-rgb-effects/
 npm exec --yes --package=fengari-node-cli@0.1.0 -- fengari tests/helloradio-v15.lua .
 ~~~
 
-95 项本地模拟检查，含三种屏幕布局、校准、按键权限、组合动作和灯珠增量更新。模拟结果不等于实机认证。动图由实际 Lua 输出生成；中英文各有一张总览和 32 张独立预览。生成方法见 [tools/previews](tools/previews/README.zh-CN.md)。
+106 项本地模拟检查，含三种屏幕布局、多种字体高度、校准、按键权限、组合动作、闲置熄灯与唤醒和灯珠增量更新。模拟结果不等于实机认证。动图由实际 Lua 输出生成；中英文各有一张总览和 32 张独立预览。生成方法见 [tools/previews](tools/previews/README.zh-CN.md)。
 
 ## 许可
 

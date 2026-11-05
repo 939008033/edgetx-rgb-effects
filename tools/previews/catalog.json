@@ -146,11 +146,11 @@
     "id": "B01-user",
     "zh-CN": {
       "name": "自定义油门灯",
-      "note": "配色、走向、起点使用 v15map 保存的设置"
+      "note": "沿用历史配色和走向；新装默认彩虹镜像"
     },
     "en": {
       "name": "Custom Throttle",
-      "note": "Uses the palette, direction and start saved by v15map."
+      "note": "Keeps legacy styling; defaults to a mirrored rainbow on new installs."
     }
   },
   {

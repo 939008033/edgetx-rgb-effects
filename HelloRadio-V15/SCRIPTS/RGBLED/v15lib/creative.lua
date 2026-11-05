@@ -92,9 +92,9 @@ function M.render(core,w,c,kind,phase)
 end
 function M.runtime(core,kind)
   assert(rates[kind],"V15: unknown creative effect")
-  local w,c,last,lastRun,active,phase
+  local w,c,idle,last,lastRun,active,phase
   local function init()
-    w=core.writer(); c=nil; last=nil; lastRun=nil; active=false; phase=0
+    w=core.writer(); idle=core.idle(); c=nil; last=nil; lastRun=nil; active=false; phase=0
   end
   local function run()
     if not w or not core.hardware() then return end
@@ -109,11 +109,12 @@ function M.runtime(core,kind)
     if not c or c.ready~=1 then
       w.enableKeys(false); w.reset(); w.flush(); return
     end
+    if idle.apply(w,c,now) then return end
     phase=(phase+dt*rates[kind])%1
     M.render(core,w,c,kind,phase)
   end
   return {init=init,run=run,background=function()
-    if active then w.releaseKeys(); active=false end
+    if active then w.releaseKeys(); active=false; idle=core.idle() end
     last=nil
   end}
 end

@@ -30,7 +30,7 @@
 
 | GIF | 说明 |
 |---|---|
-| [B01-user · 自定义油门灯](../../previews/zh-CN/B-throttle/B01-user.gif) | 配色、走向、起点使用 v15map 保存的设置 |
+| [B01-user · 自定义油门灯](../../previews/zh-CN/B-throttle/B01-user.gif) | 沿用历史配色和走向；新装默认彩虹镜像 |
 | [B02-rain · 彩虹油门](../../previews/zh-CN/B-throttle/B02-rain.gif) | 红橙→黄绿→青蓝→紫；左顺右逆，内下角起 |
 | [B03-ice · 冰蓝油门](../../previews/zh-CN/B-throttle/B03-ice.gif) | 深蓝→青→冰白；左顺右逆，内下角起 |
 | [B04-fire · 火焰油门](../../previews/zh-CN/B-throttle/B04-fire.gif) | 红橙→橙→金黄；左顺右逆，内下角起 |

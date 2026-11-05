@@ -162,9 +162,9 @@ function M.render(core,w,c,kind,s,v)
 end
 function M.runtime(core,kind)
   assert(kinds[kind],"V15: unknown dual-stick effect")
-  local w,c,mode,s,filtered,last,lastRun,active
+  local w,c,mode,s,idle,filtered,last,lastRun,active
   local function init()
-    w=core.writer(); c=nil; last=nil; lastRun=nil; active=false
+    w=core.writer(); idle=core.idle(); c=nil; last=nil; lastRun=nil; active=false
   end
   local function run()
     if not w or not core.hardware() then return end
@@ -177,6 +177,9 @@ function M.runtime(core,kind)
     if last and now>=last and now-last<5 then return end
     local ticks=last and clamp(now-last,0,50) or 0
     last=now
+    if c and c.ready==1 and idle.apply(w,c,now) then
+      s=M.state(); filtered=nil; return
+    end
     local v=c and c.ready==1 and M.inputs(mode) or nil
     if not v then
       s=M.state(); filtered=nil; w.enableKeys(false); w.reset(); w.flush(); return
@@ -193,7 +196,7 @@ function M.runtime(core,kind)
     M.render(core,w,c,kind,s,filtered)
   end
   return {init=init,run=run,background=function()
-    if active then w.releaseKeys(); active=false end
+    if active then w.releaseKeys(); active=false; idle=core.idle() end
     last=nil
   end}
 end

@@ -15,6 +15,12 @@ LCD_W,LCD_H=480,272
 -- Match EdgeTX's Lua globals; CENTERED exists only on the C++ side.
 CENTER=0x800
 CENTERED=nil
+local fontHeight=24
+lcd={sizeText=function(text)
+  local width=0
+  for _,code in utf8.codes(text) do width=width+(code<128 and 12 or 24) end
+  return width,fontHeight
+end}
 function getTime() return now end
 function getValue(id) assert(id=="thr"); return stick end
 function getOutputValue(id) lastChannel=id; return output end
@@ -333,7 +339,7 @@ local function layout()
   local capture={width=LCD_W,height=LCD_H,body=body,title=title,widgets={}}
   for i,p in ipairs(ui) do
     local owner=buttonForLabel(p)
-    assert(p.x>=0 and p.y>=0 and p.h>=(owner and 24 or 32) and p.w>0)
+    assert(p.x>=0 and p.y>=0 and p.h>=(owner and fontHeight or 32) and p.w>0)
     assert(p.x+p.w<=LCD_W and p.y+p.h<=body,"Outside screen")
     local text=p.kind=="choice" and p.values[p.get()] or textOf(p)
     assert(utf8.len(text),"Invalid UTF8")
@@ -345,7 +351,7 @@ local function layout()
       assert(p.text=="","Native auto-sized label must stay empty")
       assert(c.x>=p.x and c.y>=p.y and c.x+c.w<=p.x+p.w and c.y+c.h<=p.y+p.h,"Caption outside button")
       assert(width-24<=c.w,"Chinese caption clipped: "..text)
-      assert(c.h>=24,"Caption height too small")
+      assert(c.h==fontHeight,"Caption height must match the firmware font line height")
       assert(c.align==CENTER,"Button caption must use EdgeTX's CENTER constant")
       assert(c.x-p.x==p.x+p.w-c.x-c.w,"Caption box must be symmetric")
       assert(math.abs((c.y-p.y)-(p.y+p.h-c.y-c.h))<=1,"Caption must be vertically centered")
@@ -368,13 +374,13 @@ test("Chinese four step calibration saves physical side and clockwise mapping",f
   click("反转方向"); click("方向正确"); t.run()
   click("下一颗灯"); click("确定灯位"); t.run()
   click("方向正确"); t.run()
-  click("配色"); t.run(); choose("配色",8); choose("走向",5); choose("起点",4)
-  click("返回预览"); t.run(); click("设置"); t.run()
-  choose("来源",4); choose("油门",2); choose("平滑",4); choose("亮度",4)
-  click("返回预览"); t.run(); click("保存设置")
+  click("设置"); t.run(); choose("亮度",4); click("油门设置"); t.run()
+  choose("来源",4); choose("油门",2); choose("平滑",4)
+  click("返回"); t.run()
+  click("返回"); t.run(); click("保存设置")
   local c=assert(core.load())
   assert(c.ready==1 and c.bottomA==1 and c.bottomB==17 and c.left==1 and c.cwA==0)
-  assert(c.palette==8 and c.pattern==5 and c.angle==4 and c.source==3 and c.reverse==1 and c.brightness==80 and c.smooth==12)
+  assert(c.palette==1 and c.pattern==1 and c.angle==1 and c.source==3 and c.reverse==1 and c.brightness==80 and c.smooth==12)
   closePage(); assert(t.run()==2)
 end)
 for _,size in ipairs({{480,272},{480,320},{800,480}}) do
@@ -385,13 +391,11 @@ for _,size in ipairs({{480,272},{480,320},{800,480}}) do
     click("方向正确"); t.run(); layout()
     click("确定灯位"); t.run(); layout()
     click("方向正确"); t.run(); layout()
-    click("设置"); t.run(); choose("来源",33); choose("亮度",5); layout()
-    click("返回预览"); t.run(); click("配色"); t.run(); choose("走向",5); layout()
-    click("测试按键灯"); t.run(); layout()
-    click("返回预览"); t.run(); click("测试"); t.run(); layout()
-    click("全部红色"); t.run(); assert(count()==32); layout()
-    click("返回预览"); t.run(); click("关于"); t.run(); layout()
-    click("返回预览"); t.run(); click("保存设置"); layout()
+    click("设置"); t.run(); choose("亮度",5); choose("六键",1); choose("低功耗",4); layout()
+    click("油门设置"); t.run(); choose("来源",33); layout()
+    click("返回"); t.run(); layout()
+    click("返回"); t.run(); click("关于"); t.run(); layout()
+    click("返回"); t.run(); click("保存设置"); layout()
     closePage(); assert(t.run()==2)
   end)
 end
@@ -404,53 +408,79 @@ test("fallback layout and save failure status remain readable",function()
   closePage(); assert(t.run()==2)
   lvgl.PAGE_BODY_HEIGHT=232
 end)
-test("static diagnostics stay fixed and do not rewrite LEDs as time passes",function()
+test("home settings and About stay dark instead of playing a separate preview",function()
   local c=fresh(); assert(core.save(c)); local t=openTool()
-  click("测试"); t.run(); click("半圈青色"); t.run(); assert(count()==16)
+  assert(count()==0)
   local n=writes; local snap=snapshot()
   for i=1,20 do stick=1024; now=i*5; t.run(); assert(snapshot()==snap) end
   assert(writes==n)
-  click("全部红色"); t.run()
-  for id=0,31 do assert(leds[id][1]==100 and leds[id][2]==0 and leds[id][3]==0) end
-  click("关闭灯环"); t.run(); assert(count(0,37)==0)
-  closePage(); t.run(); closePage(); assert(t.run()==2)
+  click("设置"); t.run(); choose("亮度",5); t.run(); assert(count()==0)
+  click("返回"); t.run(); click("关于"); t.run(); assert(count()==0)
+  click("返回"); t.run(); click("返回"); assert(t.run()==2)
 end)
-test("tool key tests expose blocked control without overwriting switch indicators",function()
+test("calibration tool never probes or overwrites key indicators",function()
   local c=fresh(); assert(core.save(c)); denied[32]=true; leds[32]={12,34,56}
+  leds[33]={56,34,12}
   local t=openTool()
-  assert(textOf(ui[1])=="键灯受限：暂用灯环")
-  click("测试"); t.run(); click("测试按键灯"); t.run(); assert(textOf(ui[1])=="接口响应 5/6")
-  assert(table.concat(leds[32],",")=="12,34,56")
-  click("下一按键"); t.run(); assert(lit(33))
-  click("返回预览"); t.run(); closePage(); assert(t.run()==2)
+  click("重新校准"); t.run(); finish(t); click("返回"); assert(t.run()==2)
+  assert(table.concat(leds[32],",")=="12,34,56" and table.concat(leds[33],",")=="56,34,12")
 end)
 test("recalibration and page changes do not save until requested",function()
   local c=fresh(); assert(core.save(c)); local saved=files[core.path]
   local t=openTool(); click("重新校准")
-  assert(title=="V15灯光 v5.1 - 预览","Rebuild must be deferred")
+  assert(title=="V15灯光 v5.2 - 主页","Rebuild must be deferred")
   t.run(); click("下一颗灯"); finish(t)
   assert(files[core.path]==saved)
   closePage(); assert(t.run()==2)
 end)
+test("simplified menus have one Return action per page and preserve saved effect styles",function()
+  local c=fresh(); c.palette=8; c.pattern=5; c.angle=4; assert(core.save(c))
+  local t=openTool()
+  local function buttons()
+    local labels={}; local returns=0
+    for _,p in ipairs(ui) do if p.kind=="button" then
+      local text=textOf(p); labels[#labels+1]=text
+      if text=="返回" then returns=returns+1 end
+    end end
+    assert(returns==1,"Each page should have exactly one Return button")
+    return table.concat(labels,",")
+  end
+  assert(buttons()=="设置,关于,重新校准,保存设置,返回")
+  click("设置"); t.run(); assert(buttons()=="油门设置,返回")
+  choose("亮度",3); choose("六键",1); choose("低功耗",3)
+  click("油门设置"); t.run(); assert(buttons()=="返回")
+  choose("来源",2); choose("油门",2); choose("平滑",4)
+  click("返回"); t.run(); assert(title=="V15灯光 v5.2 - 设置")
+  click("油门设置"); t.run(); closePage(); t.run()
+  assert(title=="V15灯光 v5.2 - 设置","Header and caption Return must navigate identically")
+  click("返回"); t.run(); click("关于"); t.run(); assert(buttons()=="返回")
+  click("返回"); t.run(); click("保存设置")
+  local saved=assert(core.load())
+  assert(saved.palette==8 and saved.pattern==5 and saved.angle==4)
+  assert(saved.brightness==60 and saved.keys==0 and saved.idleMinutes==10)
+  assert(saved.source==1 and saved.reverse==1 and saved.smooth==12)
+  click("返回"); assert(t.run()==2)
+end)
+
 test("missing helper and unsupported layout have Chinese error pages",function()
   local old=loadScript
   loadScript=function(path,mode)
     if string.find(path,"effects.lua",1,true) then return nil end
     return old(path,mode)
   end
-  local t=openTool(); layout(); click("退出工具"); assert(t.run()==2); loadScript=old
-  LED_STRIP_LENGTH=7; t=openTool(); layout(); click("退出工具"); assert(t.run()==2); LED_STRIP_LENGTH=38
+  local t=openTool(); layout(); click("返回"); assert(t.run()==2); loadScript=old
+  LED_STRIP_LENGTH=7; t=openTool(); layout(); click("返回"); assert(t.run()==2); LED_STRIP_LENGTH=38
 end)
 test("saved settings, full UI, every entry work without string metatable",function()
-  local c=fresh(); assert(core.save(c))
+  local c=fresh(); c.keys=0; assert(core.save(c))
   local meta=debug.getmetatable(""); debug.setmetatable("",nil)
   local ok,err=pcall(function()
     assert(core.load().bottomA==9)
     local t=openTool(); click("设置"); t.run(); choose("亮度",3)
-    click("返回预览"); t.run(); click("配色"); t.run(); choose("配色",6)
-    click("返回预览"); t.run(); click("保存设置"); assert(core.load().brightness==60)
+    click("油门设置"); t.run(); choose("平滑",2); click("返回"); t.run()
+    click("返回"); t.run(); click("保存设置"); assert(core.load().brightness==60)
     closePage(); assert(t.run()==2)
-    t=openTool(); click("关于"); t.run(); layout(); click("返回预览"); t.run(); closePage(); assert(t.run()==2)
+    t=openTool(); click("关于"); t.run(); layout(); click("返回"); t.run(); closePage(); assert(t.run()==2)
     for _,name in ipairs(presetNames) do
       local rt=script("HelloRadio-V15/SCRIPTS/RGBLED/"..name..".lua")
       rt.init(); stick=1024; now=0; rt.run(); assert(count()==32)
@@ -595,14 +625,14 @@ test("deactivation releases CFS once and reactivation re-probes changed button t
   for i=3,6 do assert(m.overrides[i]) end
   assert(count(0,37)==38)
 end)
-test("key diagnostic shows CFS route and tool exit releases its colour overrides",function()
+test("tool navigation leaves existing CFS overrides and firmware ownership untouched",function()
   local c=fresh(); local m=cfsMock(allAssigned); assert(core.save(c))
-  local t=openTool(); click("测试"); t.run(); click("测试按键灯"); t.run()
-  assert(textOf(ui[1])=="接口响应 6/6")
-  assert(string.find(textOf(ui[2]),"SW1  Lua专用",1,true)); layout()
-  assert(m.overrides[1])
-  click("返回预览"); t.run(); closePage(); assert(t.run()==2)
-  for i=1,6 do assert(not m.overrides[i]) end
+  setCFSLedColor("SW1",12,34,56)
+  local calls,cancels=m.calls,m.cancels
+  local t=openTool(); click("设置"); t.run(); choose("六键",1); layout()
+  click("返回"); t.run(); click("返回"); assert(t.run()==2)
+  assert(m.calls==calls and m.cancels==cancels)
+  assert(table.concat(m.overrides[1],",")=="12,34,56")
 end)
 local motion=script("HelloRadio-V15/SCRIPTS/RGBLED/v15lib/motion.lua")
 local motionPresets={{"A01-flow","flow"},{"A05-brea","breathe"},{"A08-comt","comet"},
@@ -1183,7 +1213,194 @@ test("about page displays identity without changing calibration or LEDs",functio
   assert(textOf(ui[4])=="邮箱: 939008033@qq.com")
   assert(#ui==6)
   assert(saved==files[core.path] and writes==n and snapshot()==before)
-  click("返回预览"); t.run(); closePage(); assert(t.run()==2)
+  click("返回"); t.run(); closePage(); assert(t.run()==2)
+end)
+test("button captions center actual firmware font heights on every display",function()
+  for _,size in ipairs({{480,272},{480,320},{800,480}}) do
+    LCD_W,LCD_H=size[1],size[2]; lvgl.PAGE_BODY_HEIGHT=LCD_H-40
+    for _,height in ipairs({18,22,28,32}) do
+      fontHeight=height
+      local c=fresh(); assert(core.save(c)); local t=openTool(); layout()
+      click("设置"); t.run(); layout(); click("油门设置"); t.run(); layout()
+      click("返回"); t.run(); click("返回"); t.run(); click("关于"); t.run(); layout()
+      click("返回"); t.run(); click("返回"); assert(t.run()==2)
+    end
+  end
+  fontHeight=24; LCD_W,LCD_H=480,272; lvgl.PAGE_BODY_HEIGHT=232
+end)
+
+test("older v5 files default to disabled idle timeout without losing calibration",function()
+  local c=fresh(); assert(core.save(c))
+  local legacy=string.gsub(files[core.path],"idleMinutes=0\n","")
+  files[core.path]=legacy
+  local loaded=assert(core.load()); assert(loaded.idleMinutes==0)
+  for k,v in pairs(c) do assert(loaded[k]==v,k) end
+  assert(files[core.path]==legacy,"Migration must not write the SD card")
+  for _,value in ipairs({"-5","7","20","abc"}) do
+    files[core.path]=legacy.."idleMinutes="..value.."\n"
+    assert(core.load()==nil,"Invalid timeout accepted: "..value)
+  end
+  for _,minutes in ipairs({0,5,10,15}) do
+    c.idleMinutes=minutes; assert(core.save(c)); assert(core.load().idleMinutes==minutes)
+  end
+end)
+
+local function activityMock()
+  local originalValue,originalField,originalSource=getValue,getFieldInfo,getSourceIndex
+  local values={rud=0,ele=0,thr=1024,ail=0,s1=0,s2=0,ls=0,rs=0,sa=-1024,
+    ["trim-rud"]=0,["trim-ele"]=0,["trim-thr"]=0,["trim-ail"]=0}
+  for i=1,6 do values[100+i]=-1024 end
+  getFieldInfo=function(name) if values[name]~=nil then return {id=name} end end
+  getSourceIndex=function(name)
+    local i=tonumber(string.match(name,"^SW([1-6])$")); return i and 100+i
+  end
+  getValue=function(id) return values[id] end
+  return values,function() getValue,getFieldInfo,getSourceIndex=originalValue,originalField,originalSource end
+end
+
+test("idle timeouts honor all minute options and disabled mode never polls controls",function()
+  local c,w=fresh(); local original=getValue; local polled=0
+  getValue=function() polled=polled+1; return 0 end
+  local idle=core.idle()
+  for _,time in ipairs({0,30000,60000,90000,180000}) do assert(not idle.apply(w,c,time)) end
+  assert(polled==0,"Disabled idle mode must not read controls")
+  getValue=original
+  local values,restore=activityMock()
+  for _,minutes in ipairs({5,10,15}) do
+    c.idleMinutes=minutes; idle=core.idle(); core.render(w,c,1)
+    assert(not idle.apply(w,c,0)); assert(not idle.apply(w,c,minutes*6000-1))
+    assert(count(0,37)==38)
+    assert(idle.apply(w,c,minutes*6000) and count(0,37)==0)
+    local n,applied=writes,commits
+    assert(idle.apply(w,c,minutes*6000+5) and writes==n and commits==applied)
+    values.rud=values.rud+32
+    assert(not idle.apply(w,c,minutes*6000+10)); core.render(w,c,1); assert(count(0,37)==38)
+    c.idleMinutes=0; assert(not idle.apply(w,c,minutes*6000+100000))
+  end
+  restore()
+end)
+
+test("idle filtering ignores jitter and changing outputs but detects slow deliberate motion",function()
+  local c,w=fresh(); c.idleMinutes=5
+  local values,restore=activityMock(); local idle=core.idle()
+  assert(not idle.apply(w,c,0))
+  for time=100,29900,100 do
+    values.rud=time%200==0 and 3 or -3; output=time%2048-1024
+    assert(not idle.apply(w,c,time))
+  end
+  assert(idle.apply(w,c,30000),"ADC noise must not hold the lights awake")
+  for value=4,15 do values.rud=value; assert(idle.apply(w,c,30000+value)) end
+  values.rud=16; assert(not idle.apply(w,c,30020),"Small steps must accumulate into meaningful movement")
+  values.rud=0/0; values.ele=math.huge; values.ail=nil
+  assert(idle.apply(w,c,60020),"Failed/nonfinite reads must not count as activity")
+  restore(); output=1024
+end)
+
+test("pots switches trims and all six function keys reset idle and wake lights",function()
+  local c,w=fresh(); c.idleMinutes=5
+  local values,restore=activityMock()
+  for _,id in ipairs({"s1","s2","ls","rs","sa","trim-rud","trim-ele","trim-thr","trim-ail",101,102,103,104,105,106}) do
+    local idle=core.idle(); assert(not idle.apply(w,c,0)); assert(idle.apply(w,c,30000))
+    values[id]=values[id]+32; assert(not idle.apply(w,c,30005),tostring(id))
+    assert(not idle.apply(w,c,60004)); assert(idle.apply(w,c,60005))
+  end
+  restore()
+end)
+
+test("idle timeout survives pauses and handles time wrap and explicit UI activity",function()
+  local c,w=fresh(); c.idleMinutes=5
+  local _,restore=activityMock(); local idle=core.idle()
+  assert(not idle.apply(w,c,0)); assert(idle.apply(w,c,90000))
+  assert(not idle.apply(w,c,90005,123)); assert(idle.apply(w,c,120005))
+  idle.touch(120010); assert(not idle.apply(w,c,120010))
+  assert(not idle.apply(w,c,5)); assert(idle.apply(w,c,30005))
+  c.idleMinutes=10; assert(not idle.apply(w,c,30010)); assert(idle.apply(w,c,90010))
+  restore()
+end)
+
+test("idle monitoring tolerates missing lookup APIs and the firmware string environment",function()
+  local c,w=fresh(); c.idleMinutes=5
+  local values,restore=activityMock()
+  local field=getFieldInfo
+  getSourceIndex=nil
+  getFieldInfo=function(name)
+    if name=="sz" then return {id="telemetry",desc=""} end
+    return field(name)
+  end
+  local reader=getValue; local telemetryReads=0
+  getValue=function(id)
+    assert(type(id)~="table","Lookup results must be unpacked")
+    if id=="telemetry" then telemetryReads=telemetryReads+1; return now end
+    return reader(id)
+  end
+  local meta=debug.getmetatable(""); debug.setmetatable("",nil)
+  local ok,err=pcall(function()
+    local idle=core.idle(); assert(not idle.apply(w,c,0)); assert(idle.apply(w,c,30000))
+    values.rud=100; assert(not idle.apply(w,c,30005))
+    assert(telemetryReads==0,"A sensor named like a switch must not keep lights awake")
+    getFieldInfo=nil
+    idle=core.idle(); assert(not idle.apply(w,c,0)); assert(idle.apply(w,c,30000))
+    values.ail=100; assert(not idle.apply(w,c,30005))
+  end)
+  debug.setmetatable("",meta); restore(); assert(ok,err)
+end)
+
+test("sleep keeps CFS keys black without changing their permissions and releases on exit",function()
+  local c=fresh(); c.idleMinutes=5; local m=cfsMock(allAssigned)
+  local w=core.writer(); w.probeKeys(); core.render(w,c,1)
+  local values,restore=activityMock(); local idle=core.idle()
+  assert(not idle.apply(w,c,0)); assert(idle.apply(w,c,30000))
+  assert(count(0,37)==0)
+  for i=1,6 do assert(m.overrides[i] and m.allowOn[i] and m.allowOff[i]) end
+  m.on[1]=true; refreshCfs(); assert(not lit(32),"Sleeping must not release a lit firmware indicator")
+  values[101]=1024; assert(not idle.apply(w,c,30005)); core.render(w,c,1); assert(count(0,37)==38)
+  w.releaseKeys(); for i=1,6 do assert(not m.overrides[i]) end
+  restore()
+end)
+
+test("every preset sleeps on schedule and wakes without rewriting configuration",function()
+  local entries={}
+  for _,name in ipairs(presetNames) do entries[#entries+1]=name end
+  for _,list in ipairs({motionPresets,creativePresets,stickPresets}) do
+    for _,preset in ipairs(list) do entries[#entries+1]=preset[1] end
+  end
+  assert(#entries==32)
+  local originalMode=getStickMode; getStickMode=function() return 2 end
+  for _,name in ipairs(entries) do
+    local c=fresh(); c.idleMinutes=5; assert(core.save(c)); local saved=files[core.path]
+    local values,restore=activityMock(); values.rud=512; values.ail=512
+    local rt=newMotion(name); rt.run()
+    now=30000; rt.run(); assert(count(0,37)==0,name.." failed to sleep")
+    local n,sd=writes,reads
+    for i=1,10 do now=30000+i*5; rt.run(); assert(count(0,37)==0) end
+    assert(writes==n and reads==sd,name.." rewrites sleeping LEDs or polls SD")
+    values.ail=-512; now=30055; rt.run()
+    -- C04 waits for a combo; a wake frame is still sent to restore its base.
+    assert(writes>n or name=="C04-cmb",name.." did not render after wake")
+    if name~="C04-cmb" and name~="A13-nova" then assert(count(0,37)>0,name) end
+    assert(files[core.path]==saved,name.." changed config")
+    rt.background(); restore()
+  end
+  getStickMode=originalMode
+end)
+
+test("mapper power settings persist only on save and calibration wakes on activity",function()
+  local c=fresh(); assert(core.save(c)); local saved=files[core.path]
+  local _,restore=activityMock(); local t=openTool()
+  click("设置"); t.run(); layout()
+  for _,p in ipairs(ui) do if p.kind=="choice" and p.title=="低功耗" then
+    assert(p.get()==1 and table.concat(p.values,",")=="关闭,5分钟,10分钟,15分钟")
+  end end
+  for i=2,4 do choose("低功耗",i); t.run(); layout() end
+  assert(files[core.path]==saved)
+  choose("低功耗",2); click("返回"); t.run(); click("保存设置")
+  assert(core.load().idleMinutes==5)
+  click("重新校准"); t.run(); assert(count()==1)
+  now=30000; t.run(); assert(count(0,37)==0)
+  click("下一颗灯"); t.run(); assert(count()==1)
+  now=60000; t.run(); assert(count()==0)
+  t.run(123); assert(count()==1,"UI events must wake the calibration light")
+  finish(t); assert(count()==0); click("返回"); assert(t.run()==2); restore()
 end)
 io=hostIO
 print(string.format("All %d V15 behavioral checks passed (mock hardware; no handset test).",checks))

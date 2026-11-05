@@ -88,12 +88,12 @@ function M.render(core,w,c,kind,phase,progress)
 end
 function M.runtime(core,kind)
   assert(rates[kind],"V15: unknown animation")
-  local w,c,s,last,lastRun,active,phase
+  local w,c,s,idle,last,lastRun,active,phase
   local function reload()
     c=core.load(); s=core.smoother(); phase=0; last=nil; w.last={}
   end
   local function init()
-    w=core.writer(); c=nil; last=nil; lastRun=nil; active=false; phase=0
+    w=core.writer(); idle=core.idle(); c=nil; last=nil; lastRun=nil; active=false; phase=0
   end
   local function run()
     if not w or not core.hardware() then return end
@@ -108,6 +108,7 @@ function M.runtime(core,kind)
     if not c or c.ready~=1 then
       w.enableKeys(false); w.reset(); w.flush(); return
     end
+    if idle.apply(w,c,now) then return end
     -- Exhibition effects are independent of throttle, including missing inputs.
     local p=kind=="jet" and s.update(core.progress(c),now,c.smooth) or 0
     local rate=kind=="jet" and (0.2+0.8*p) or rates[kind]
@@ -115,7 +116,7 @@ function M.runtime(core,kind)
     M.render(core,w,c,kind,phase,p)
   end
   return {init=init,run=run,background=function()
-    if active then w.releaseKeys(); active=false end
+    if active then w.releaseKeys(); active=false; idle=core.idle() end
     last=nil
   end}
 end

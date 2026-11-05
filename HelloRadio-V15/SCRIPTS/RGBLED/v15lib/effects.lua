@@ -1,23 +1,23 @@
 -- Xu
--- V15 v5.1. Only reads stick/channel values; never writes model settings.
+-- V15 v5.2. Only reads stick/channel values; never writes model settings.
 -- Assigned SW1..SW6 need setCFSLedColor and BOTH state override permissions.
-local M={version=5,revision="5.1",path="/SCRIPTS/RGBLED/v15lib/layout.cfg"}
+local M={version=5,revision="5.2",path="/SCRIPTS/RGBLED/v15lib/layout.cfg"}
 local function clamp(v,a,b) return math.max(a,math.min(b,v)) end
 local function int(v,a,b)
   return type(v)=="number" and v==math.floor(v) and v>=a and v<=b
 end
 local fields={"bottomA","bottomB","cwA","cwB","left","ready","source","reverse",
-  "brightness","smooth","palette","pattern","angle","keys"}
+  "brightness","smooth","palette","pattern","angle","keys","idleMinutes"}
 local ranges={{0,15},{16,31},{0,1},{0,1},{0,1},{0,1},{0,32},{0,1},
-  {5,100},{0,20},{1,8},{1,5},{1,4},{0,1}}
+  {5,100},{0,20},{1,8},{1,5},{1,4},{0,1},{0,15}}
 function M.defaults()
   return {bottomA=0,bottomB=16,cwA=1,cwB=1,left=0,ready=0,source=0,
-    reverse=0,brightness=40,smooth=8,palette=1,pattern=1,angle=1,keys=1}
+    reverse=0,brightness=40,smooth=8,palette=1,pattern=1,angle=1,keys=1,idleMinutes=0}
 end
 function M.valid(c)
   if type(c)~="table" then return false end
   for i,k in ipairs(fields) do if not int(c[k],ranges[i][1],ranges[i][2]) then return false end end
-  return true
+  return c.idleMinutes%5==0
 end
 function M.hardware()
   return type(setRGBLedColor)=="function" and type(applyRGBLedColors)=="function"
@@ -38,6 +38,8 @@ function M.load()
   if not legacy and not string.match(text,"^V15THR5\n") then return nil,"invalid" end
   local c={}
   for k,v in string.gmatch(text,"([%a]+)=(%d+)\n") do c[k]=tonumber(v) end
+  if c.idleMinutes==nil and string.find(text,"\nidleMinutes=",1,true) then return nil,"invalid" end
+  if c.idleMinutes==nil then c.idleMinutes=0 end -- Existing v5 calibration stays valid.
   if legacy then
     for _,k in ipairs({"bottomA","bottomB","source","reverse","brightness"}) do
       if c[k]==nil then return nil,"invalid" end
@@ -286,13 +288,69 @@ function M.smoother()
   end
   return s
 end
+
+-- Watch physical controls, never animated colors, telemetry or mixed outputs.
+-- RGB special functions receive no menu/touch events from EdgeTX. The mapper
+-- also calls touch() from its own controls; SW1..SW6 use display source names.
+function M.idle()
+  local s={sleeping=false}
+  local inputs,lastActive,lastTime,minutes
+  local function finite(v) return type(v)=="number" and v==v and math.abs(v)<math.huge end
+  local function discover()
+    inputs={}
+    local function add(name,threshold,displayName)
+      local id=name
+      local lookup=getFieldInfo
+      if displayName then lookup=getSourceIndex end
+      if type(lookup)=="function" then
+        local ok,value=pcall(lookup,name)
+        if displayName then id=ok and value or nil
+        else id=ok and type(value)=="table" and value.desc~="" and value.id or nil end
+      elseif displayName then return end
+      if id~=nil and id~=false then inputs[#inputs+1]={id=id,threshold=threshold} end
+    end
+    for _,name in ipairs({"rud","ele","thr","ail","s1","s2","ls","rs"}) do add(name,16) end
+    for _,name in ipairs({"trim-rud","trim-ele","trim-thr","trim-ail"}) do add(name,1) end
+    for code=string.byte("a"),string.byte("z") do add("s"..string.char(code),1) end
+    for i=1,6 do add("SW"..i,1,true) end
+  end
+  function s.touch(now)
+    lastActive=now; s.sleeping=false
+  end
+  function s.apply(w,c,now,event)
+    local timeout=c.idleMinutes or 0
+    if timeout==0 then
+      minutes=0; lastTime=now; s.touch(now); return false
+    end
+    if not inputs then discover() end
+    if not lastActive or timeout~=minutes or (lastTime and now<lastTime) then s.touch(now) end
+    minutes=timeout; lastTime=now
+    if type(event)=="number" and event~=0 then s.touch(now) end
+    if type(getValue)=="function" then
+      for _,input in ipairs(inputs) do
+        local ok,value=pcall(getValue,input.id)
+        if ok and finite(value) then
+          if input.value==nil then input.value=value
+          elseif math.abs(value-input.value)>=input.threshold then
+            input.value=value; s.touch(now)
+          end
+        end
+      end
+    end
+    s.sleeping=now-lastActive>=timeout*6000
+    if s.sleeping then w.reset(); w.flush() end
+    return s.sleeping
+  end
+  return s
+end
+
 function M.runtime(preset)
-  local w,c,s,last,lastRun,resume,active
+  local w,c,s,idle,last,lastRun,resume,active
   local function reload()
     c=M.load(); s=M.smoother(); w.last={}
   end
   local function init()
-    w=M.writer(); last=nil; lastRun=nil; resume=false; active=false
+    w=M.writer(); idle=M.idle(); last=nil; lastRun=nil; resume=false; active=false
     if M.hardware() then reload() end
   end
   local function run()
@@ -305,13 +363,14 @@ function M.runtime(preset)
     if last and now>=last and now-last<5 then return end
     last=now
     if not c or c.ready~=1 then w.enableKeys(false); w.reset(); w.flush(); return end
+    if idle.apply(w,c,now) then return end
     local p=s.update(M.progress(c),now,c.smooth)
     M.render(w,c,p,preset)
   end
   -- Release assigned-switch colour overrides once on deactivation. Merely
   -- loading an inactive preset never acquires or releases anyone else's LEDs.
   return {init=init,run=run,background=function()
-    if active then w.releaseKeys(); active=false end
+    if active then w.releaseKeys(); active=false; idle=M.idle() end
     resume=true; last=nil
   end}
 end
