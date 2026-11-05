@@ -12,6 +12,9 @@ local lastChannel
 local refreshCfs
 LED_STRIP_LENGTH=38
 LCD_W,LCD_H=480,272
+-- Match EdgeTX's Lua globals; CENTERED exists only on the C++ side.
+CENTER=0x800
+CENTERED=nil
 function getTime() return now end
 function getValue(id) assert(id=="thr"); return stick end
 function getOutputValue(id) lastChannel=id; return output end
@@ -155,6 +158,28 @@ test("pure blue never emits any red, including partially lit leading LEDs",funct
     for id=0,37 do assert(leds[id][1]==0) end
   end
 end)
+
+test("writer updates only changed LEDs and force restores the complete frame",function()
+  local c,w=fresh(); core.render(w,c,0.5)
+  local before=snapshot(); local n,applied=writes,commits
+  w.set(7,12,34,56); assert(w.flush())
+  assert(writes==n+1 and commits==applied+1,"One LED change needs one write and one apply")
+  assert(table.concat(leds[7],",")=="12,34,56")
+  n,applied=writes,commits
+  assert(not w.flush() and writes==n and commits==applied,"Unchanged frames must be skipped")
+  local desired=snapshot()
+  leds[0]={255,255,255}; leds[37]={255,255,255}
+  assert(w.flush(true) and writes==n+38 and commits==applied+1)
+  assert(snapshot()==desired and desired~=before,"Force must restore all owned LEDs")
+end)
+
+test("fractional throttle changes write only the two leading ring LEDs",function()
+  local c,w=fresh(); c.keys=0; c.palette=6
+  core.render(w,c,0.51)
+  local n,applied=writes,commits
+  core.render(w,c,0.52)
+  assert(writes==n+2 and commits==applied+1,"Two leading LEDs should not rewrite the entire strip")
+end)
 test("all palettes increase monotonically per LED over a throttle sweep",function()
   for palette=1,8 do
     local c,w=fresh(); c.palette=palette
@@ -258,14 +283,33 @@ function lvgl.page(p)
     pg[kind]=function(_,v)
       local allowed={x=true,y=true,w=true,h=true}
       if kind=="choice" then allowed.title=true; allowed.values=true; allowed.get=true; allowed.set=true
-      else allowed.font=true; allowed.text=true; if kind=="button" then allowed.press=true end end
+      else allowed.font=true; allowed.text=true; if kind=="button" then allowed.press=true else allowed.align=true end end
       for k in pairs(v) do assert(allowed[k],kind..": invalid property "..k) end
-      v.kind=kind; ui[#ui+1]=v; return v
+      v.kind=kind
+      -- V15 returns a non-container handle; it has no label() method.
+      ui[#ui+1]=v; return {}
     end
   end
   return pg
 end
-local function textOf(p) return type(p.text)=="function" and p.text() or p.text end
+local function buttonForLabel(p)
+  if p.kind~="label" then return nil end
+  for _,b in ipairs(ui) do
+    if b.kind=="button" and p.x>=b.x and p.y>=b.y
+      and p.x+p.w<=b.x+b.w and p.y+p.h<=b.y+b.h then return b end
+  end
+end
+local function captionOf(b)
+  local found
+  for _,p in ipairs(ui) do if buttonForLabel(p)==b then
+    assert(not found,"Multiple captions cover one button"); found=p
+  end end
+  return assert(found,"Button has no visible caption")
+end
+local function textOf(p)
+  if p.kind=="button" and p.text=="" then p=captionOf(p) end
+  return type(p.text)=="function" and p.text() or p.text
+end
 local function click(text)
   for _,p in ipairs(ui) do if p.kind=="button" and textOf(p)==text then p.press(); return end end
   error("Missing button "..text)
@@ -288,31 +332,46 @@ local function layout()
   local body=math.min(LCD_H-60,lvgl.PAGE_BODY_HEIGHT or LCD_H-60)
   local capture={width=LCD_W,height=LCD_H,body=body,title=title,widgets={}}
   for i,p in ipairs(ui) do
-    assert(p.x>=0 and p.y>=0 and p.h>=32 and p.w>0)
+    local owner=buttonForLabel(p)
+    assert(p.x>=0 and p.y>=0 and p.h>=(owner and 24 or 32) and p.w>0)
     assert(p.x+p.w<=LCD_W and p.y+p.h<=body,"Outside screen")
     local text=p.kind=="choice" and p.values[p.get()] or textOf(p)
     assert(utf8.len(text),"Invalid UTF8")
     local width=p.kind=="label" and 0 or 24
     for _,code in utf8.codes(text) do width=width+(code<128 and 12 or 24) end
     assert(width<=p.w,"Caption overflow: "..text)
-    for j=1,i-1 do local q=ui[j]
-      assert(p.x>=q.x+q.w or q.x>=p.x+p.w or p.y>=q.y+q.h or q.y>=p.y+p.h,"Overlap")
+    if p.kind=="button" then
+      local c=captionOf(p)
+      assert(p.text=="","Native auto-sized label must stay empty")
+      assert(c.x>=p.x and c.y>=p.y and c.x+c.w<=p.x+p.w and c.y+c.h<=p.y+p.h,"Caption outside button")
+      assert(width-24<=c.w,"Chinese caption clipped: "..text)
+      assert(c.h>=24,"Caption height too small")
+      assert(c.align==CENTER,"Button caption must use EdgeTX's CENTER constant")
+      assert(c.x-p.x==p.x+p.w-c.x-c.w,"Caption box must be symmetric")
+      assert(math.abs((c.y-p.y)-(p.y+p.h-c.y-c.h))<=1,"Caption must be vertically centered")
     end
-    capture.widgets[#capture.widgets+1]={kind=p.kind,x=p.x,y=p.y,w=p.w,h=p.h,text=text}
+    for j=1,i-1 do local q=ui[j]
+      if owner~=q and buttonForLabel(q)~=p then
+        assert(p.x>=q.x+q.w or q.x>=p.x+p.w or p.y>=q.y+q.h or q.y>=p.y+p.h,"Overlap")
+      end
+    end
+    if not owner then
+      capture.widgets[#capture.widgets+1]={kind=p.kind,x=p.x,y=p.y,w=p.w,h=p.h,text=text}
+    end
   end
   captures[#captures+1]=capture
 end
 test("Chinese four step calibration saves physical side and clockwise mapping",function()
   fresh(); files[core.path]=nil
   local t=openTool(); assert(count()==1)
-  click("下一个"); choose("所在侧",2); click("确定灯位"); t.run()
-  click("反转"); click("方向正确"); t.run()
-  click("下一个"); click("确定灯位"); t.run()
+  click("下一颗灯"); choose("所在侧",2); click("确定灯位"); t.run()
+  click("反转方向"); click("方向正确"); t.run()
+  click("下一颗灯"); click("确定灯位"); t.run()
   click("方向正确"); t.run()
   click("配色"); t.run(); choose("配色",8); choose("走向",5); choose("起点",4)
-  click("返回"); t.run(); click("设置"); t.run()
+  click("返回预览"); t.run(); click("设置"); t.run()
   choose("来源",4); choose("油门",2); choose("平滑",4); choose("亮度",4)
-  click("返回"); t.run(); click("保存")
+  click("返回预览"); t.run(); click("保存设置")
   local c=assert(core.load())
   assert(c.ready==1 and c.bottomA==1 and c.bottomB==17 and c.left==1 and c.cwA==0)
   assert(c.palette==8 and c.pattern==5 and c.angle==4 and c.source==3 and c.reverse==1 and c.brightness==80 and c.smooth==12)
@@ -327,12 +386,12 @@ for _,size in ipairs({{480,272},{480,320},{800,480}}) do
     click("确定灯位"); t.run(); layout()
     click("方向正确"); t.run(); layout()
     click("设置"); t.run(); choose("来源",33); choose("亮度",5); layout()
-    click("返回"); t.run(); click("配色"); t.run(); choose("走向",5); layout()
-    click("测键灯"); t.run(); layout()
-    click("返回"); t.run(); click("测试"); t.run(); layout()
-    click("全红"); t.run(); assert(count()==32); layout()
-    click("返回"); t.run(); click("关于"); t.run(); layout()
-    click("返回"); t.run(); click("保存"); layout()
+    click("返回预览"); t.run(); click("配色"); t.run(); choose("走向",5); layout()
+    click("测试按键灯"); t.run(); layout()
+    click("返回预览"); t.run(); click("测试"); t.run(); layout()
+    click("全部红色"); t.run(); assert(count()==32); layout()
+    click("返回预览"); t.run(); click("关于"); t.run(); layout()
+    click("返回预览"); t.run(); click("保存设置"); layout()
     closePage(); assert(t.run()==2)
   end)
 end
@@ -340,36 +399,36 @@ test("fallback layout and save failure status remain readable",function()
   LCD_W,LCD_H=480,272; lvgl.PAGE_BODY_HEIGHT=nil
   fresh(); files[core.path]=nil
   local t=openTool(); layout(); finish(t)
-  noWrite=true; click("保存"); noWrite=false; layout()
+  noWrite=true; click("保存设置"); noWrite=false; layout()
   assert(textOf(ui[1])=="保存失败，请检查SD卡")
   closePage(); assert(t.run()==2)
   lvgl.PAGE_BODY_HEIGHT=232
 end)
 test("static diagnostics stay fixed and do not rewrite LEDs as time passes",function()
   local c=fresh(); assert(core.save(c)); local t=openTool()
-  click("测试"); t.run(); click("半青"); t.run(); assert(count()==16)
+  click("测试"); t.run(); click("半圈青色"); t.run(); assert(count()==16)
   local n=writes; local snap=snapshot()
   for i=1,20 do stick=1024; now=i*5; t.run(); assert(snapshot()==snap) end
   assert(writes==n)
-  click("全红"); t.run()
+  click("全部红色"); t.run()
   for id=0,31 do assert(leds[id][1]==100 and leds[id][2]==0 and leds[id][3]==0) end
-  click("全灭"); t.run(); assert(count(0,37)==0)
+  click("关闭灯环"); t.run(); assert(count(0,37)==0)
   closePage(); t.run(); closePage(); assert(t.run()==2)
 end)
 test("tool key tests expose blocked control without overwriting switch indicators",function()
   local c=fresh(); assert(core.save(c)); denied[32]=true; leds[32]={12,34,56}
   local t=openTool()
   assert(textOf(ui[1])=="键灯受限：暂用灯环")
-  click("测试"); t.run(); click("测键灯"); t.run(); assert(textOf(ui[1])=="接口响应 5/6")
+  click("测试"); t.run(); click("测试按键灯"); t.run(); assert(textOf(ui[1])=="接口响应 5/6")
   assert(table.concat(leds[32],",")=="12,34,56")
-  click("下一键"); t.run(); assert(lit(33))
-  click("返回"); t.run(); closePage(); assert(t.run()==2)
+  click("下一按键"); t.run(); assert(lit(33))
+  click("返回预览"); t.run(); closePage(); assert(t.run()==2)
 end)
 test("recalibration and page changes do not save until requested",function()
   local c=fresh(); assert(core.save(c)); local saved=files[core.path]
-  local t=openTool(); click("重校")
+  local t=openTool(); click("重新校准")
   assert(title=="V15灯光 v5.1 - 预览","Rebuild must be deferred")
-  t.run(); click("下一个"); finish(t)
+  t.run(); click("下一颗灯"); finish(t)
   assert(files[core.path]==saved)
   closePage(); assert(t.run()==2)
 end)
@@ -379,8 +438,8 @@ test("missing helper and unsupported layout have Chinese error pages",function()
     if string.find(path,"effects.lua",1,true) then return nil end
     return old(path,mode)
   end
-  local t=openTool(); layout(); click("退出"); assert(t.run()==2); loadScript=old
-  LED_STRIP_LENGTH=7; t=openTool(); layout(); click("退出"); assert(t.run()==2); LED_STRIP_LENGTH=38
+  local t=openTool(); layout(); click("退出工具"); assert(t.run()==2); loadScript=old
+  LED_STRIP_LENGTH=7; t=openTool(); layout(); click("退出工具"); assert(t.run()==2); LED_STRIP_LENGTH=38
 end)
 test("saved settings, full UI, every entry work without string metatable",function()
   local c=fresh(); assert(core.save(c))
@@ -388,10 +447,10 @@ test("saved settings, full UI, every entry work without string metatable",functi
   local ok,err=pcall(function()
     assert(core.load().bottomA==9)
     local t=openTool(); click("设置"); t.run(); choose("亮度",3)
-    click("返回"); t.run(); click("配色"); t.run(); choose("配色",6)
-    click("返回"); t.run(); click("保存"); assert(core.load().brightness==60)
+    click("返回预览"); t.run(); click("配色"); t.run(); choose("配色",6)
+    click("返回预览"); t.run(); click("保存设置"); assert(core.load().brightness==60)
     closePage(); assert(t.run()==2)
-    t=openTool(); click("关于"); t.run(); layout(); click("返回"); t.run(); closePage(); assert(t.run()==2)
+    t=openTool(); click("关于"); t.run(); layout(); click("返回预览"); t.run(); closePage(); assert(t.run()==2)
     for _,name in ipairs(presetNames) do
       local rt=script("HelloRadio-V15/SCRIPTS/RGBLED/"..name..".lua")
       rt.init(); stick=1024; now=0; rt.run(); assert(count()==32)
@@ -429,6 +488,28 @@ local function cfsMock(assigned)
   return m
 end
 local allAssigned={true,true,true,true,true,true}
+test("changed ring frames retain CFS overrides and key write failure releases ownership",function()
+  local c=fresh(); local m=cfsMock(allAssigned)
+  local w=core.writer(); w.probeKeys(); core.render(w,c,0.5)
+  local n,applied,calls=writes,commits,m.calls
+  w.set(7,12,34,56); assert(w.flush())
+  assert(writes==n+1 and commits==applied+1 and m.calls==calls)
+  for i=1,6 do assert(m.overrides[i],"Ring changes must retain key overrides") end
+  w.set(32,23,45,67); assert(w.flush())
+  assert(writes==n+1 and m.calls==calls+1)
+  local setter=setCFSLedColor
+  setCFSLedColor=function(name,r,g,b)
+    if name=="SW1" and r~=nil then return false end
+    return setter(name,r,g,b)
+  end
+  w.set(32,0,0,0); assert(w.flush())
+  assert(not m.overrides[1] and not w.owned[32] and not w.keys[32] and w.keyCount==5)
+  local cancels=m.cancels
+  assert(not w.flush() and m.cancels==cancels,"A failed route must not be retried every frame")
+  core.render(w,c,0.5)
+  assert(not w.keyEnabled)
+  for i=1,6 do assert(not m.overrides[i]) end
+end)
 test("screenshot mixed SW1/SW2 active plus disabled keys uses both APIs",function()
   local c=fresh(); local m=cfsMock({true,true})
   local w=core.writer(); w.probeKeys()
@@ -516,11 +597,11 @@ test("deactivation releases CFS once and reactivation re-probes changed button t
 end)
 test("key diagnostic shows CFS route and tool exit releases its colour overrides",function()
   local c=fresh(); local m=cfsMock(allAssigned); assert(core.save(c))
-  local t=openTool(); click("测试"); t.run(); click("测键灯"); t.run()
+  local t=openTool(); click("测试"); t.run(); click("测试按键灯"); t.run()
   assert(textOf(ui[1])=="接口响应 6/6")
   assert(string.find(textOf(ui[2]),"SW1  Lua专用",1,true)); layout()
   assert(m.overrides[1])
-  click("返回"); t.run(); closePage(); assert(t.run()==2)
+  click("返回预览"); t.run(); closePage(); assert(t.run()==2)
   for i=1,6 do assert(not m.overrides[i]) end
 end)
 local motion=script("HelloRadio-V15/SCRIPTS/RGBLED/v15lib/motion.lua")
@@ -1098,9 +1179,11 @@ test("about page displays identity without changing calibration or LEDs",functio
   local t=openTool(); local before=snapshot(); local n=writes
   click("关于"); t.run(); layout()
   assert(textOf(ui[1])=="V15 灯效" and textOf(ui[2])=="作者：Xu")
-  assert(#ui==3)
+  assert(textOf(ui[3])=="GitHub: github.com/939008033")
+  assert(textOf(ui[4])=="邮箱: 939008033@qq.com")
+  assert(#ui==6)
   assert(saved==files[core.path] and writes==n and snapshot()==before)
-  click("返回"); t.run(); closePage(); assert(t.run()==2)
+  click("返回预览"); t.run(); closePage(); assert(t.run()==2)
 end)
 io=hostIO
 print(string.format("All %d V15 behavioral checks passed (mock hardware; no handset test).",checks))

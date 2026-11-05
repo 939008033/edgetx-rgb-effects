@@ -67,8 +67,14 @@ local function build()
   end
   local function button(line,index,total,text,fn)
     local ww=math.floor((width-16-(total-1)*8)/total)
-    pg:button({x=8+(index-1)*(ww+8),y=8+(line-1)*row,w=ww,h=height,
-      font=STDSIZE or 0,text=text,press=fn})
+    local x,y=8+(index-1)*(ww+8),8+(line-1)*row
+    -- V15 button handles are not containers. Draw the caption on the page.
+    pg:button({x=x,y=y,w=ww,h=height,
+      font=STDSIZE or 0,text="",press=fn})
+    local th=math.min(24,height)
+    -- EdgeTX exports CENTER to Lua; CENTERED is only the C++ constant name.
+    pg:label({x=x+8,y=y+math.floor((height-th)/2),w=ww-16,h=th,
+      font=STDSIZE or 0,align=CENTER,text=text})
   end
   local function choice(line,title,values,get,set)
     label(line,title,8,104)
@@ -78,14 +84,14 @@ local function build()
   end
   if problem then
     label(1,"无法启动"); label(2,problem); label(3,"请完整复制 SCRIPTS")
-    button(5,1,1,"退出",close)
+    button(5,1,1,"退出工具",close)
   elseif page=="cal" then
     local g=group()
     label(1,"第 "..phase.."/4 步：灯组 "..(g+1))
     if phase%2==1 then
       label(2,function() return string.format("选正下方灯珠：编号 %02d",selected) end)
-      button(3,1,2,"上一个",function() move(-1) end)
-      button(3,2,2,"下一个",function() move(1) end)
+      button(3,1,2,"上一颗灯",function() move(-1) end)
+      button(3,2,2,"下一颗灯",function() move(1) end)
       if phase==1 then
         choice(4,"所在侧",{"左摇杆","右摇杆"},function() return c.left+1 end,
           function(i) c.left=i-1 end)
@@ -94,7 +100,7 @@ local function build()
     else
       label(2,"看白灯：应当顺时针转")
       label(3,"方向不对就点反转")
-      button(4,1,1,"反转",flip)
+      button(4,1,1,"反转方向",flip)
       button(5,1,1,"方向正确",advance)
     end
   elseif page=="preview" then
@@ -109,12 +115,14 @@ local function build()
     button(4,2,4,"设置",function() jump("settings") end)
     button(4,3,4,"测试",function() live=false; jump("test") end)
     button(4,4,4,"关于",function() live=false; jump("about") end)
-    button(5,1,2,"重校",calibrate)
-    button(5,2,2,"保存",save)
+    button(5,1,2,"重新校准",calibrate)
+    button(5,2,2,"保存设置",save)
   elseif page=="about" then
     label(1,"V15 灯效")
     label(2,"作者：Xu")
-    button(5,1,1,"返回",back)
+    label(3,"GitHub: github.com/939008033")
+    label(4,"邮箱: 939008033@qq.com")
+    button(5,1,1,"返回预览",back)
   elseif page=="settings" then
     local sources={"油门摇杆"}
     for i=1,32 do sources[#sources+1]="CH"..i end
@@ -127,32 +135,32 @@ local function build()
       for i,v in ipairs(smooth) do if c.smooth==v then return i end end; return 3
     end,function(i) c.smooth=smooth[i] end)
     button(5,1,2,"配色",function() jump("style") end)
-    button(5,2,2,"返回",back)
+    button(5,2,2,"返回预览",back)
   elseif page=="style" then
     choice(1,"配色",core.paletteNames,function() return c.palette end,function(i) c.palette=i end)
     choice(2,"走向",core.patternNames,function() return c.pattern end,function(i) c.pattern=i end)
     choice(3,"起点",core.angleNames,function() return c.angle end,function(i) c.angle=i end)
     choice(4,"六键",{"关闭","优先点亮"},function() return c.keys+1 end,function(i) c.keys=i-1 end)
-    button(5,1,2,"测键灯",function() jump("keys") end)
-    button(5,2,2,"返回",back)
+    button(5,1,2,"测试按键灯",function() jump("keys") end)
+    button(5,2,2,"返回预览",back)
   elseif page=="keys" then
     label(1,function() return string.format("接口响应 %d/6",w.keyCount) end)
     label(2,function() return string.format("SW%d  %s  第%d键",key,w.keyRoute(31+key),key) end)
-    button(3,1,2,"上一键",function() key=(key-2)%6+1; dirty=true end)
-    button(3,2,2,"下一键",function() key=key%6+1; dirty=true end)
+    button(3,1,2,"上一按键",function() key=(key-2)%6+1; dirty=true end)
+    button(3,2,2,"下一按键",function() key=key%6+1; dirty=true end)
     label(4,"关闭 / ON 均允许Lua")
-    button(5,1,2,"重测",function() w.probeKeys(); dirty=true end)
-    button(5,2,2,"返回",back)
+    button(5,1,2,"重新检测",function() w.probeKeys(); dirty=true end)
+    button(5,2,2,"返回预览",back)
   elseif page=="test" then
     label(1,"固定颜色，不随油门改变")
     label(2,"仍乱色：查固件或其它灯效")
-    for i,v in ipairs({{"全青","cyan"},{"全红","red"},{"全蓝","blue"}}) do
+    for i,v in ipairs({{"全部青色","cyan"},{"全部红色","red"},{"全部蓝色","blue"}}) do
       local mode=v[2]; button(3,i,3,v[1],function() testMode=mode; dirty=true end)
     end
-    button(4,1,2,"半青",function() testMode="half"; dirty=true end)
-    button(4,2,2,"全灭",function() testMode="off"; dirty=true end)
-    button(5,1,2,"测键灯",function() jump("keys") end)
-    button(5,2,2,"返回",back)
+    button(4,1,2,"半圈青色",function() testMode="half"; dirty=true end)
+    button(4,2,2,"关闭灯环",function() testMode="off"; dirty=true end)
+    button(5,1,2,"测试按键灯",function() jump("keys") end)
+    button(5,2,2,"返回预览",back)
   end
 end
 local function init()

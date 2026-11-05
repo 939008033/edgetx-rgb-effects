@@ -32,7 +32,7 @@ edgetx-rgb-effects/
 npm exec --yes --package=fengari-node-cli@0.1.0 -- fengari tests/helloradio-v15.lua .
 ~~~
 
-92 mocked checks cover three screen layouts, calibration, key permissions and stick combos. They are not hardware certification. GIFs use real Lua output: one overview and 32 individual previews per language. See [preview generation](tools/previews/README.md).
+95 mocked checks cover three screen layouts, calibration, key permissions, stick combos and incremental LED updates. They are not hardware certification. GIFs use real Lua output: one overview and 32 individual previews per language. See [preview generation](tools/previews/README.md).
 
 ## Licensing
 

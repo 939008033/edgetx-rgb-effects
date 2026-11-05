@@ -106,7 +106,10 @@ function M.writer()
     p[3]=math.floor(clamp(b,0,255)+0.5)
   end
   function w.reset()
-    for id=0,37 do w.set(id,0,0,0) end
+    for id=0,37 do
+      local p=w.frame[id]
+      p[1],p[2],p[3]=0,0,0
+    end
   end
   function w.releaseKeys()
     -- Only release overrides this writer has actually set. Inactive presets
@@ -178,27 +181,26 @@ function M.writer()
   end
   function w.flush(force)
     local changed=force
+    -- The firmware retains each LED's color between apply calls. Only update
+    -- changed entries; still apply the complete frame once, without blanking.
     for id=0,37 do
       if id<32 or (w.keyEnabled and w.keys[id]) then
         local c=w.frame[id]
         local packed=c[1]*65536+c[2]*256+c[3]
-        if w.last[id]~=packed then changed=true end
+        if force or w.last[id]~=packed then
+          changed=true
+          if id<32 then setRGBLedColor(id,c[1],c[2],c[3])
+          elseif not writeKey(id,c) then
+            if w.owned[id] and type(setCFSLedColor)=="function" then
+              pcall(setCFSLedColor,w.owned[id]); w.owned[id]=nil
+            end
+            w.keys[id]=false; w.keyCount=w.keyCount-1
+          end
+          w.last[id]=packed
+        end
       end
     end
     if not changed then return false end
-    for id=0,37 do
-      if id<32 or (w.keyEnabled and w.keys[id]) then
-        local c=w.frame[id]
-        if id<32 then setRGBLedColor(id,c[1],c[2],c[3])
-        elseif not writeKey(id,c) then
-          if w.owned[id] and type(setCFSLedColor)=="function" then
-            pcall(setCFSLedColor,w.owned[id]); w.owned[id]=nil
-          end
-          w.keys[id]=false; w.keyCount=w.keyCount-1
-        end
-        w.last[id]=c[1]*65536+c[2]*256+c[3]
-      end
-    end
     applyRGBLedColors()
     return true
   end
